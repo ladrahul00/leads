@@ -137,9 +137,34 @@ func (e *NewLeadService) lead(ctx context.Context, req *leads.NewLeadRequest) (m
 		return newLead, err
 	}
 	// TO_DO: validate lead template
-	// newLead.TemplateValues = req.TemplateValues
+	invalidTemplateKeys := []string{}
+	leadTemplateValues := models.SourceWithKeyValue{LeadSource: req.Source, Meta: []models.KeyValue{}}
+	for mi := 0; mi < len(req.TemplateValues); mi++ {
+		templateKey := req.TemplateValues[mi].Key
+		if !e.isTemplateKey(leadTemplate, templateKey) {
+			invalidTemplateKeys = append(invalidTemplateKeys, templateKey)
+		}
+		leadTemplateValues.Meta = append(leadTemplateValues.Meta, models.KeyValue{Key: templateKey, Value: req.TemplateValues[mi].Value})
+	}
+	if len(invalidTemplateKeys) > 0 {
+		return newLead, fmt.Errorf("the following fields should not be part of the lead template: %s", strings.Join(invalidTemplateKeys, ","))
+	}
+	newLead.TemplateValues = append([]models.SourceWithKeyValue{}, leadTemplateValues)
 	newLead.TemplateID = leadTemplate.ID
 	return newLead, nil
+}
+
+func (e *NewLeadService) isTemplateKey(leadTemplate models.LeadTemplate, key string) bool {
+	if len(leadTemplate.KeyValueTypes) == 0 {
+		return false
+	}
+	for ti := 0; ti < len(leadTemplate.KeyValueTypes); ti++ {
+		if key == leadTemplate.KeyValueTypes[ti].Key {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (e *NewLeadService) preExistingLead(ctx context.Context, req *leads.NewLeadRequest) bool {
